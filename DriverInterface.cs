@@ -424,7 +424,16 @@ namespace AcculoadOASDriver
                         return "Unable to determine";
                     break;
                 case "IVVolume":
-                    sendData = Encoding.ASCII.GetBytes("\x02" + acculoadArmAddress + "RT R" + "\x03");
+                    //Check the status to see if the accuload is in progress.  If not, pull the most recent transaction
+                    if (accuLoadRunning())
+                    {
+                        sendData = Encoding.ASCII.GetBytes("\x02" + acculoadArmAddress + "RT R" + "\x03");
+                    }
+                    else
+                    {
+                        sendData = Encoding.ASCII.GetBytes("\x02" + acculoadArmAddress + "RT R 001" + "\x03");
+                    }
+
                     sock.Send(sendData, 0, sendData.Length, 0);
                     rec = sock.Receive(receiveData);
 
@@ -433,7 +442,15 @@ namespace AcculoadOASDriver
                     return ivVolume.ToString();
                     break;
                 case "GVVolume":
-                    sendData = Encoding.ASCII.GetBytes("\x02" + acculoadArmAddress + "RT G" + "\x03");
+                    if (accuLoadRunning())
+                    {
+                        sendData = Encoding.ASCII.GetBytes("\x02" + acculoadArmAddress + "RT G" + "\x03");
+                    }
+                    else
+                    {
+                        sendData = Encoding.ASCII.GetBytes("\x02" + acculoadArmAddress + "RT G 001" + "\x03");
+                    }
+                    
                     sock.Send(sendData, 0, sendData.Length, 0);
                     rec = sock.Receive(receiveData);
                     double gvVolume = volumeConvert(receiveData, rec);
@@ -441,7 +458,15 @@ namespace AcculoadOASDriver
                     return gvVolume.ToString();
                     break;
                 case "GSTVolume":
-                    sendData = Encoding.ASCII.GetBytes("\x02" + acculoadArmAddress + "RT N" + "\x03");
+                    if (accuLoadRunning())
+                    {
+                        sendData = Encoding.ASCII.GetBytes("\x02" + acculoadArmAddress + "RT N" + "\x03");
+                    }
+                    else
+                    {
+                        sendData = Encoding.ASCII.GetBytes("\x02" + acculoadArmAddress + "RT N 001" + "\x03");
+                    }
+                    
                     sock.Send(sendData, 0, sendData.Length, 0);
                     rec = sock.Receive(receiveData);
                     double gstVolume = volumeConvert(receiveData, rec);
@@ -449,7 +474,15 @@ namespace AcculoadOASDriver
                     return gstVolume.ToString();
                     break;
                 case "GSVVolume":
-                    sendData = Encoding.ASCII.GetBytes("\x02" + acculoadArmAddress + "RT P" + "\x03");
+                    if (accuLoadRunning())
+                    {
+                        sendData = Encoding.ASCII.GetBytes("\x02" + acculoadArmAddress + "RT P" + "\x03");
+                    }
+                    else
+                    {
+                        sendData = Encoding.ASCII.GetBytes("\x02" + acculoadArmAddress + "RT P 001" + "\x03");
+                    }
+
                     sock.Send(sendData, 0, sendData.Length, 0);
                     rec = sock.Receive(receiveData);
                     double gsvVolume = volumeConvert(receiveData, rec);
@@ -457,31 +490,43 @@ namespace AcculoadOASDriver
                     return gsvVolume.ToString();
                     break;
                 case "TransactionNumber":
-                    sendData = Encoding.ASCII.GetBytes("\x02" + acculoadArmAddress + "TN" + "\x03");
+                    int transactionNumber = 0;
+                    sendData = Encoding.ASCII.GetBytes("\x02" + acculoadArmAddress + "TN 001" + "\x03");
                     sock.Send(sendData, 0, sendData.Length, 0);
                     rec = sock.Receive(receiveData);
-                    string response = Encoding.ASCII.GetString(receiveData, 0, rec);
-                    if (response.Contains("NO08"))
+
+                    if (accuLoadRunning())
                     {
-                        int previousTransaction;
-                        sendData = Encoding.ASCII.GetBytes("\x02" + acculoadArmAddress + "TN 001" + "\x03");
-                        sock.Send(sendData, 0, sendData.Length, 0);
-                        rec = sock.Receive(receiveData);
-
-                        previousTransaction = Convert.ToInt32(Encoding.ASCII.GetString(receiveData, 7, 4)) + 1;
-                        response = previousTransaction.ToString();
-
-                        //break
+                        transactionNumber = Convert.ToInt32(Encoding.ASCII.GetString(receiveData, 7, 4)) + 1;
                     }
-                        
+                    else
+                    {
+                        transactionNumber = Convert.ToInt32(Encoding.ASCII.GetString(receiveData, 7, 4));
+                    }
 
-
-                    return response;
+                    return transactionNumber.ToString();
+                    break;
             }
             return "We didn't find a case for that";
 
         }
 
+        private bool accuLoadRunning()
+        {
+            byte[] sendData;
+            byte[] receiveData = new byte[255];
+            int rec;
+            sendData = Encoding.ASCII.GetBytes("\x02" + acculoadArmAddress + "RS" + "\x03");
+            sock.Send(sendData, 0, sendData.Length, 0);
+            rec = sock.Receive(receiveData);
+            Array.Resize(ref receiveData, rec);
+            string statusResultString = Encoding.ASCII.GetString(receiveData, 0, receiveData.Length);
+            Console.WriteLine("Raw result string: {0}", statusResultString.ToString());
+            if (statusResultString.Contains("AU") || statusResultString.Contains("BD"))
+                return false;
+            else
+                return true;
+        }
         private double volumeConvert(byte[] volumeBytes, int size)
         {
             Array.Resize(ref volumeBytes, size);
